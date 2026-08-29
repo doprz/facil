@@ -38,6 +38,10 @@ pub enum ConfigError {
     NoHome,
     #[error("failed to serialize config: {0}")]
     Serialize(#[from] toml::ser::Error),
+    #[error("failed to parse tmuxinator YAML: {0}")]
+    ImportParse(#[from] serde_yaml_ng::Error),
+    #[error("{0}")]
+    ImportField(String),
 }
 
 #[derive(Debug, thiserror::Error)]

@@ -21,6 +21,10 @@ the filename or the `<name>` argument used to find it. In practice these should
 match, but nothing enforces it — `facil start foo` can load a file whose `name`
 is `"bar"`, and the resulting tmux session will be called `bar`.
 
+Coming from tmuxinator? `facil import <path.yml>` converts an existing config
+instead of a manual rewrite — see [docs/import.md](import.md) for the full
+field mapping.
+
 ## Top-level fields
 
 ```toml

@@ -65,4 +65,10 @@ pub enum Commands {
         #[arg(long)]
         socket: Option<String>,
     },
+    /// Convert a tmuxinator YAML config to a facil config and open it in $EDITOR
+    Import {
+        path: PathBuf,
+        /// output config name; defaults to the YAML's own top-level `name`
+        name: Option<String>,
+    },
 }

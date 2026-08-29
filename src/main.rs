@@ -3,6 +3,7 @@ mod commands;
 mod config;
 mod doctor;
 mod error;
+mod import;
 mod session;
 mod snapshot;
 mod tmux;

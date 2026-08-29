@@ -4,6 +4,13 @@
 
 Everything works headless and scriptable from the CLI; there's no TUI to get in the way.
 
+## Why facil?
+
+- **Single binary.** No Ruby/gem toolchain to install first (tmuxinator), no other language runtime — build or download one binary. The only other runtime dependency is `tmux` itself, and `facil doctor` confirms it's there and compatible.
+- **TOML, not YAML.** Unambiguous parsing, no indentation footguns — a config's structure matches the data.
+- **Bring your existing configs.** `facil import <tmuxinator.yml>` converts a tmuxinator project directly (see [docs/import.md](docs/import.md)) — switching costs an import and a quick review, not a rewrite.
+- **The name**: *facil* comes from the Latin *facilis* / Spanish *fácil* — "easy" — the goal for both the config format and the CLI.
+
 ## Install
 
 From source:
@@ -69,6 +76,7 @@ facil stop myproject    # kills the session
 | `facil debug [name]` | Print the tmux command sequence a `start` would run, without executing it |
 | `facil doctor` | Check that tmux is installed, compatible, and the config dir is writable |
 | `facil snapshot <session>` | Write a config that reproduces a live session's window/pane layout and working directories (not commands, `pre`/`post`, or `tmux_options`) |
+| `facil import <path.yml> [name]` | Convert a tmuxinator YAML config to a facil config and open it in `$EDITOR` |
 
 `name` is optional throughout: give one to operate on `~/.config/facil/<name>.toml`, or omit it to use `./facil.toml` in the current directory. `--config <path>` overrides both.
 

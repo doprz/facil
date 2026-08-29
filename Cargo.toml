@@ -9,3 +9,4 @@ serde = { version = "1.0.229", features = ["derive"] }
 toml = "1.1.4"
 thiserror = "2"
 clap_complete = "4.6.9"
+serde_yaml_ng = "0.10.0"
