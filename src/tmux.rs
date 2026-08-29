@@ -8,6 +8,24 @@ pub struct Tmux {
     verbose: u8,
 }
 
+/// Raw `tmux -V` output (e.g. "tmux 3.7b"), no socket/session context needed.
+pub fn version() -> Result<String, TmuxError> {
+    let output = Command::new("tmux").arg("-V").output().map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            TmuxError::NotFound
+        } else {
+            TmuxError::Spawn(e)
+        }
+    })?;
+    if !output.status.success() {
+        return Err(TmuxError::CommandFailed {
+            status: output.status.code().unwrap_or(-1),
+            stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+        });
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
 impl Tmux {
     pub fn new(socket_name: Option<String>, verbose: u8) -> Self {
         Self { socket_name, verbose }

@@ -50,4 +50,10 @@ pub enum Commands {
         #[arg(short = 's', long = "set", value_name = "KEY=VALUE")]
         vars: Vec<String>,
     },
+    /// Check that tmux is installed, compatible, and the config dir is writable
+    Doctor,
+    /// Copy an existing config to a new name and open it in $EDITOR
+    Copy { existing: String, new: String },
+    /// Print a shell completion script to stdout
+    Completions { shell: clap_complete::Shell },
 }

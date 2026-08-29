@@ -1,7 +1,10 @@
+use clap::CommandFactory;
+
 use crate::cli::{Cli, Commands};
 use crate::config;
 use crate::config::model::Project;
 use crate::config::{substitute, validate};
+use crate::doctor;
 use crate::error::{ConfigError, Error};
 use crate::session;
 use crate::tmux::Tmux;
@@ -19,6 +22,9 @@ pub fn dispatch(cli: Cli) -> Result<(), Error> {
         Commands::Delete { name } => delete(name, config_override),
         Commands::Validate { name, vars } => validate_cmd(name, config_override, vars),
         Commands::Debug { name, vars } => debug_cmd(name, config_override, vars),
+        Commands::Doctor => doctor::run(),
+        Commands::Copy { existing, new } => copy(existing, new),
+        Commands::Completions { shell } => completions(shell),
     }
 }
 
@@ -165,6 +171,45 @@ fn debug_cmd(name: Option<String>, config_override: Option<&std::path::Path>, va
     let steps = session::build_plan(&project);
     print!("{}", session::render(&project.name, &steps));
     Ok(())
+}
+
+fn copy(existing: String, new: String) -> Result<(), Error> {
+    let dir = config::config_dir()?;
+    let source = dir.join(format!("{existing}.toml"));
+    let dest = dir.join(format!("{new}.toml"));
+
+    if !source.is_file() {
+        return Err(ConfigError::NotFound(source).into());
+    }
+    if dest.exists() {
+        return Err(ConfigError::AlreadyExists(dest).into());
+    }
+
+    let raw = std::fs::read_to_string(&source)?;
+    let rewritten = config::rewrite_name(&raw, &new).ok_or_else(|| ConfigError::Validation {
+        field: "name".to_string(),
+        message: format!("no top-level `name` field found in {}", source.display()),
+    })?;
+    std::fs::write(&dest, rewritten)?;
+    println!("copied {existing} -> {new}");
+
+    open_in_editor(&dest)
+}
+
+fn completions(shell: clap_complete::Shell) -> Result<(), Error> {
+    use std::io::Write;
+
+    // Generate into a buffer rather than straight to stdout: clap_complete panics
+    // internally on a write failure, which a closed pipe (e.g. `| head`) triggers.
+    let mut cmd = Cli::command();
+    let mut buf = Vec::new();
+    clap_complete::generate(shell, &mut cmd, "facil", &mut buf);
+
+    match std::io::stdout().write_all(&buf) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => Ok(()),
+        Err(e) => Err(e.into()),
+    }
 }
 
 fn default_name() -> String {

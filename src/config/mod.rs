@@ -76,6 +76,39 @@ commands = ["cargo watch -x test"]
     )
 }
 
+/// Rewrite the top-level `name = "..."` line to `new_name`, leaving everything else
+/// (including any window's own `name` field) untouched. TOML's grammar guarantees
+/// every root-table key appears before the file's first `[`-prefixed table header,
+/// so tracking that boundary is exact, not a heuristic. Returns `None` if no
+/// top-level `name` assignment was found.
+pub fn rewrite_name(raw: &str, new_name: &str) -> Option<String> {
+    let mut out = String::with_capacity(raw.len() + new_name.len());
+    let mut in_root_table = true;
+    let mut replaced = false;
+
+    for line in raw.split_inclusive('\n') {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with('[') {
+            in_root_table = false;
+        }
+
+        if in_root_table
+            && !replaced
+            && let Some(rest) = trimmed.strip_prefix("name")
+            && rest.trim_start().starts_with('=')
+        {
+            let newline = if line.ends_with('\n') { "\n" } else { "" };
+            out.push_str(&format!("name = \"{new_name}\"{newline}"));
+            replaced = true;
+            continue;
+        }
+
+        out.push_str(line);
+    }
+
+    replaced.then_some(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -120,6 +153,21 @@ commands = ["docker compose up"]
         assert!(server.layout.is_none());
         assert_eq!(server.panes.len(), 1);
         assert_eq!(server.panes[0].commands, vec!["docker compose up"]);
+    }
+
+    #[test]
+    fn rewrite_name_updates_only_top_level_name() {
+        let out = rewrite_name(SPEC_EXAMPLE, "renamed").unwrap();
+        let project: Project = toml::from_str(&out).unwrap();
+        assert_eq!(project.name, "renamed");
+        assert_eq!(project.windows[0].name, "editor");
+        assert_eq!(project.windows[1].name, "server");
+    }
+
+    #[test]
+    fn rewrite_name_none_when_missing() {
+        let raw = "root = \"/tmp\"\n\n[[windows]]\nname = \"a\"\n";
+        assert_eq!(rewrite_name(raw, "renamed"), None);
     }
 
     #[test]

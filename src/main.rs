@@ -1,6 +1,7 @@
 mod cli;
 mod commands;
 mod config;
+mod doctor;
 mod error;
 mod session;
 mod tmux;
