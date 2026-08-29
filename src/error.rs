@@ -36,6 +36,8 @@ pub enum ConfigError {
     InvalidVarArg(String),
     #[error("$HOME is not set")]
     NoHome,
+    #[error("failed to serialize config: {0}")]
+    Serialize(#[from] toml::ser::Error),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -48,4 +50,6 @@ pub enum TmuxError {
     CommandFailed { status: i32, stderr: String },
     #[error("tmux did not report a pane id for: {0}")]
     NoPaneId(String),
+    #[error("no session named '{0}'")]
+    SessionNotFound(String),
 }

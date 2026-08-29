@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::Path;
 use std::process::{Command, Output};
 
@@ -6,6 +7,38 @@ use crate::error::TmuxError;
 pub struct Tmux {
     socket_name: Option<String>,
     verbose: u8,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SessionInfo {
+    pub name: String,
+    pub windows: usize,
+    pub panes: usize,
+    pub attached: bool,
+    pub created: i64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct WindowInfo {
+    pub name: String,
+    pub layout: String,
+}
+
+fn parse_session_line(line: &str) -> Option<SessionInfo> {
+    let mut parts = line.splitn(4, '\t');
+    let name = parts.next()?.to_string();
+    let windows: usize = parts.next()?.parse().ok()?;
+    let attached: u32 = parts.next()?.parse().ok()?;
+    let created: i64 = parts.next()?.parse().ok()?;
+    Some(SessionInfo { name, windows, panes: 0, attached: attached > 0, created })
+}
+
+fn count_panes_by_session(raw: &str) -> HashMap<String, usize> {
+    let mut counts = HashMap::new();
+    for line in raw.lines().filter(|l| !l.is_empty()) {
+        *counts.entry(line.to_string()).or_insert(0) += 1;
+    }
+    counts
 }
 
 /// Raw `tmux -V` output (e.g. "tmux 3.7b"), no socket/session context needed.
@@ -93,6 +126,66 @@ impl Tmux {
         Ok(output.status.success())
     }
 
+    /// All sessions on this socket. `Ok(vec![])` (not an error) when there's no
+    /// tmux server running on the socket at all — same "nothing there" convention
+    /// as `has_session`.
+    pub fn list_sessions(&self) -> Result<Vec<SessionInfo>, TmuxError> {
+        let output = self.run(&[
+            "list-sessions",
+            "-F",
+            "#{session_name}\t#{session_windows}\t#{session_attached}\t#{session_created}",
+        ])?;
+        if !output.status.success() {
+            return Ok(vec![]);
+        }
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let mut sessions: Vec<SessionInfo> = stdout.lines().filter_map(parse_session_line).collect();
+
+        let pane_output = self.run(&["list-panes", "-a", "-F", "#{session_name}"])?;
+        if pane_output.status.success() {
+            let counts = count_panes_by_session(&String::from_utf8_lossy(&pane_output.stdout));
+            for session in &mut sessions {
+                session.panes = counts.get(&session.name).copied().unwrap_or(0);
+            }
+        }
+
+        Ok(sessions)
+    }
+
+    /// This session's windows, in index order, or `SessionNotFound` if it doesn't exist.
+    pub fn list_windows(&self, session: &str) -> Result<Vec<WindowInfo>, TmuxError> {
+        if !self.has_session(session)? {
+            return Err(TmuxError::SessionNotFound(session.to_string()));
+        }
+        let output = self.run(&["list-windows", "-t", session, "-F", "#{window_name}\t#{window_layout}"])?;
+        if !output.status.success() {
+            return Err(TmuxError::CommandFailed {
+                status: output.status.code().unwrap_or(-1),
+                stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+            });
+        }
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        Ok(stdout
+            .lines()
+            .filter_map(|line| {
+                let (name, layout) = line.split_once('\t')?;
+                Some(WindowInfo { name: name.to_string(), layout: layout.to_string() })
+            })
+            .collect())
+    }
+
+    /// Every pane's current working directory in `target` (a window), in pane-index order.
+    pub fn list_panes(&self, target: &str) -> Result<Vec<String>, TmuxError> {
+        let output = self.run(&["list-panes", "-t", target, "-F", "#{pane_current_path}"])?;
+        if !output.status.success() {
+            return Err(TmuxError::CommandFailed {
+                status: output.status.code().unwrap_or(-1),
+                stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+            });
+        }
+        Ok(String::from_utf8_lossy(&output.stdout).lines().map(str::to_string).collect())
+    }
+
     pub fn new_session(
         &self,
         session: &str,
@@ -156,5 +249,38 @@ impl Tmux {
         } else {
             Err(TmuxError::Spawn(err))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_session_line() {
+        let info = parse_session_line("myproject\t2\t1\t1700000000").unwrap();
+        assert_eq!(
+            info,
+            SessionInfo { name: "myproject".to_string(), windows: 2, panes: 0, attached: true, created: 1700000000 }
+        );
+    }
+
+    #[test]
+    fn parses_unattached_session() {
+        let info = parse_session_line("myproject\t1\t0\t1700000000").unwrap();
+        assert!(!info.attached);
+    }
+
+    #[test]
+    fn rejects_malformed_session_line() {
+        assert!(parse_session_line("not enough fields").is_none());
+    }
+
+    #[test]
+    fn counts_panes_by_session() {
+        let raw = "editor\neditor\nserver\n";
+        let counts = count_panes_by_session(raw);
+        assert_eq!(counts.get("editor"), Some(&2));
+        assert_eq!(counts.get("server"), Some(&1));
     }
 }

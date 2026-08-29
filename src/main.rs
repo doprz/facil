@@ -4,6 +4,7 @@ mod config;
 mod doctor;
 mod error;
 mod session;
+mod snapshot;
 mod tmux;
 
 use clap::Parser;

@@ -42,7 +42,7 @@ socket_name = "myproject"
 | `pre` | array of strings | no | `[]` | Shell commands run once on the **host**, before any window beyond the first is created. |
 | `post` | array of strings | no | `[]` | Shell commands run once on the **host**, after every window/pane/layout is set up, right before attaching. |
 | `tmux_options` | string | no | none | Raw extra arguments appended to the `tmux new-session` call, e.g. `"-x 250 -y 50"`. |
-| `socket_name` | string | no | none | Runs the session on an isolated tmux server: every tmux invocation for this project gets `-L <socket_name>`. |
+| `socket_name` | string | no | none | Runs the session on an isolated tmux server: every tmux invocation for this project gets `-L <socket_name>`. `facil list`/`ls` only discovers unmanaged sessions on the default socket or a socket some known config already names — it can't enumerate arbitrary sockets it's never heard of. |
 | `windows` | array of tables | no (schema) / **yes** (validation) | `[]` | The session's windows, in order. An absent or empty `windows` parses fine but fails `facil validate`/`start`/`debug` with "at least one window is required." |
 
 `name` missing entirely (not just empty) is a TOML parse error, since it's a
@@ -63,7 +63,7 @@ commands = ["nvim ."]
 
 | Field | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `name` | string | yes | — | The tmux window name. Must be non-empty and unique across all windows in the file (windows are targeted by name, e.g. `session:editor`, not by index). |
+| `name` | string | no | `window<n>` | The tmux window name. If omitted, facil generates `window1`, `window2`, ... by position. Must be unique across all windows in the file either way (windows are targeted by name, e.g. `session:editor`, not by index) — an explicit name that collides with a generated one is still a validation error. |
 | `layout` | string | no | none | Passed verbatim to `tmux select-layout` after this window's panes and commands are set up. Any tmux-accepted value works (`main-vertical`, `even-horizontal`, a raw layout string, ...) — facil only checks it's non-empty if present, it does not validate it's a real layout. |
 | `pre_window` | array of strings | no | `[]` | Shell commands sent into **every pane of this window** (via `tmux send-keys`), before that pane's own `commands`. See [known limitation](#known-limitations) if `panes` is empty. |
 | `panes` | array of tables | no | `[]` | This window's panes, in order. If empty, the window still exists with tmux's single default pane, but no commands are ever sent to it. |

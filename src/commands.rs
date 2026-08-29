@@ -1,3 +1,6 @@
+use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
+
 use clap::CommandFactory;
 
 use crate::cli::{Cli, Commands};
@@ -7,7 +10,7 @@ use crate::config::{substitute, validate};
 use crate::doctor;
 use crate::error::{ConfigError, Error};
 use crate::session;
-use crate::tmux::Tmux;
+use crate::tmux::{self, Tmux};
 
 pub fn dispatch(cli: Cli) -> Result<(), Error> {
     let config_override = cli.config.as_deref();
@@ -25,6 +28,7 @@ pub fn dispatch(cli: Cli) -> Result<(), Error> {
         Commands::Doctor => doctor::run(),
         Commands::Copy { existing, new } => copy(existing, new),
         Commands::Completions { shell } => completions(shell),
+        Commands::Snapshot { session, socket } => snapshot_cmd(session, socket, verbose),
     }
 }
 
@@ -127,26 +131,96 @@ fn open_in_editor(path: &std::path::Path) -> Result<(), Error> {
 
 fn list(verbose: u8) -> Result<(), Error> {
     let paths = config::discover_all()?;
-    if paths.is_empty() {
-        println!("no configs found");
+
+    let mut ok_entries: Vec<(String, Option<String>, PathBuf)> = Vec::new();
+    let mut error_rows: Vec<(PathBuf, ConfigError)> = Vec::new();
+    for path in &paths {
+        match config::load_raw(path) {
+            Ok(project) => ok_entries.push((project.name, project.socket_name, path.clone())),
+            Err(e) => error_rows.push((path.clone(), e)),
+        }
+    }
+
+    // Query the default socket plus every socket a known config declares. facil
+    // has no way to discover sessions on a socket no config has ever mentioned.
+    let mut sockets: HashSet<Option<String>> = HashSet::from([None]);
+    sockets.extend(ok_entries.iter().map(|(_, socket, _)| socket.clone()));
+
+    let mut live: HashMap<(Option<String>, String), tmux::SessionInfo> = HashMap::new();
+    for socket in &sockets {
+        for info in Tmux::new(socket.clone(), verbose).list_sessions()? {
+            live.insert((socket.clone(), info.name.clone()), info);
+        }
+    }
+
+    if ok_entries.is_empty() && error_rows.is_empty() && live.is_empty() {
+        println!("no configs found and no tmux sessions running");
         return Ok(());
     }
 
-    println!("{:<20} {:<10} PATH", "NAME", "STATUS");
-    for path in paths {
-        match config::load_raw(&path) {
-            Ok(project) => {
-                let tmux = Tmux::new(project.socket_name.clone(), verbose);
-                let running = tmux.has_session(&project.name)?;
-                let status = if running { "running" } else { "stopped" };
-                println!("{:<20} {:<10} {}", project.name, status, path.display());
-            }
-            Err(e) => {
-                println!("{:<20} {:<10} {} ({e})", "?", "error", path.display());
-            }
+    println!(
+        "{:<16} {:<9} {:<9} {:<7} {:<10} {:<8} CONFIG",
+        "NAME", "STATUS", "WINDOWS", "PANES", "ATTACHED", "UPTIME"
+    );
+
+    let mut matched: HashSet<(Option<String>, String)> = HashSet::new();
+    for (name, socket, path) in &ok_entries {
+        let key = (socket.clone(), name.clone());
+        if let Some(info) = live.get(&key) {
+            matched.insert(key);
+            print_row(info, &path.display().to_string());
+        } else {
+            println!("{name:<16} {:<9} {:<9} {:<7} {:<10} {:<8} {}", "stopped", "-", "-", "-", "-", path.display());
         }
     }
+
+    for (path, e) in &error_rows {
+        println!("{:<16} {:<9} {:<9} {:<7} {:<10} {:<8} {} ({e})", "?", "error", "-", "-", "-", "-", path.display());
+    }
+
+    let mut unmanaged: Vec<&tmux::SessionInfo> =
+        live.iter().filter(|(key, _)| !matched.contains(key)).map(|(_, info)| info).collect();
+    unmanaged.sort_by(|a, b| a.name.cmp(&b.name));
+    for info in unmanaged {
+        print_row(info, "(unmanaged)");
+    }
+
     Ok(())
+}
+
+fn print_row(info: &tmux::SessionInfo, config_column: &str) {
+    println!(
+        "{:<16} {:<9} {:<9} {:<7} {:<10} {:<8} {}",
+        info.name,
+        "running",
+        info.windows,
+        info.panes,
+        if info.attached { "yes" } else { "no" },
+        format_uptime(info.created),
+        config_column
+    );
+}
+
+fn format_uptime(created_epoch: i64) -> String {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(created_epoch);
+    let secs = (now - created_epoch).max(0);
+
+    let days = secs / 86400;
+    let hours = (secs % 86400) / 3600;
+    let minutes = (secs % 3600) / 60;
+
+    if days > 0 {
+        format!("{days}d{hours}h")
+    } else if hours > 0 {
+        format!("{hours}h{minutes}m")
+    } else if minutes > 0 {
+        format!("{minutes}m")
+    } else {
+        format!("{secs}s")
+    }
 }
 
 fn delete(name: Option<String>, config_override: Option<&std::path::Path>) -> Result<(), Error> {
@@ -210,6 +284,25 @@ fn completions(shell: clap_complete::Shell) -> Result<(), Error> {
         Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => Ok(()),
         Err(e) => Err(e.into()),
     }
+}
+
+fn snapshot_cmd(session: String, socket: Option<String>, verbose: u8) -> Result<(), Error> {
+    let dest = config::config_dir()?.join(format!("{session}.toml"));
+    if dest.exists() {
+        return Err(ConfigError::AlreadyExists(dest).into());
+    }
+
+    let tmux = Tmux::new(socket.clone(), verbose);
+    let project = crate::snapshot::capture(&tmux, &session, socket)?;
+    let body = format!("{}{}", crate::snapshot::HEADER_COMMENT, toml::to_string_pretty(&project).map_err(ConfigError::from)?);
+
+    if let Some(parent) = dest.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(&dest, body)?;
+    println!("wrote {}", dest.display());
+
+    open_in_editor(&dest)
 }
 
 fn default_name() -> String {

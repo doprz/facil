@@ -63,11 +63,12 @@ facil stop myproject    # kills the session
 | `facil new [name]` | Scaffold a new config and open it in `$EDITOR` |
 | `facil edit [name]` | Open a config in `$EDITOR` |
 | `facil copy <existing> <new>` | Duplicate a config under a new name |
-| `facil list` | Show configured projects and whether they're running |
+| `facil list` (alias `ls`) | Show configured projects and live tmux sessions — windows, panes, attached/uptime, and which running sessions have no matching config |
 | `facil delete [name]` | Delete a config file |
 | `facil validate [name]` | Check a config for errors without touching tmux |
 | `facil debug [name]` | Print the tmux command sequence a `start` would run, without executing it |
 | `facil doctor` | Check that tmux is installed, compatible, and the config dir is writable |
+| `facil snapshot <session>` | Write a config that reproduces a live session's window/pane layout and working directories (not commands, `pre`/`post`, or `tmux_options`) |
 
 `name` is optional throughout: give one to operate on `~/.config/facil/<name>.toml`, or omit it to use `./facil.toml` in the current directory. `--config <path>` overrides both.
 

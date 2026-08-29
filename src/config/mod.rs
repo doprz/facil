@@ -47,7 +47,10 @@ fn read_and_substitute(path: &Path, vars: &HashMap<String, String>) -> Result<St
 /// Suitable for commands that only need top-level fields (e.g. `stop`).
 pub fn load_raw(path: &Path) -> Result<Project, ConfigError> {
     let resolved = read_and_substitute(path, &HashMap::new())?;
-    toml::from_str(&resolved).map_err(|source| ConfigError::Parse { path: path.to_path_buf(), source })
+    let mut project: Project =
+        toml::from_str(&resolved).map_err(|source| ConfigError::Parse { path: path.to_path_buf(), source })?;
+    project.fill_default_window_names();
+    Ok(project)
 }
 
 /// Parse a config, substituting `vars` and requiring no `{{var}}` tokens remain.
@@ -55,7 +58,10 @@ pub fn load_raw(path: &Path) -> Result<Project, ConfigError> {
 pub fn load(path: &Path, vars: &HashMap<String, String>) -> Result<Project, ConfigError> {
     let resolved = read_and_substitute(path, vars)?;
     substitute::check_no_unresolved(&resolved)?;
-    toml::from_str(&resolved).map_err(|source| ConfigError::Parse { path: path.to_path_buf(), source })
+    let mut project: Project =
+        toml::from_str(&resolved).map_err(|source| ConfigError::Parse { path: path.to_path_buf(), source })?;
+    project.fill_default_window_names();
+    Ok(project)
 }
 
 pub fn scaffold(name: &str) -> String {

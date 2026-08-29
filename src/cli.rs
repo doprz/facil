@@ -34,7 +34,8 @@ pub enum Commands {
     New { name: Option<String> },
     /// Open a config in $EDITOR
     Edit { name: Option<String> },
-    /// Show configured projects and whether they're running
+    /// Show configured projects and live tmux sessions, matched up where possible
+    #[command(alias = "ls")]
     List,
     /// Delete a config file
     Delete { name: Option<String> },
@@ -56,4 +57,12 @@ pub enum Commands {
     Copy { existing: String, new: String },
     /// Print a shell completion script to stdout
     Completions { shell: clap_complete::Shell },
+    /// Write a facil config that reproduces a live tmux session's window/pane
+    /// layout and working directories (not commands, pre/post, or tmux_options)
+    Snapshot {
+        session: String,
+        /// tmux socket the session lives on (matches tmux's -L)
+        #[arg(long)]
+        socket: Option<String>,
+    },
 }
