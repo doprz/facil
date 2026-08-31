@@ -2,6 +2,16 @@
 name = "facil"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.88"
+description = "A single-binary, TOML-driven tmux session templating and session manager"
+license = "MIT"
+repository = "https://github.com/doprz/facil"
+homepage = "https://github.com/doprz/facil"
+readme = "README.md"
+authors = ["doprz"]
+keywords = ["tmux", "cli", "tmuxinator", "session-manager", "toml"]
+categories = ["command-line-utilities", "development-tools"]
+exclude = ["*.nix", "flake.lock", ".editorconfig", ".envrc"]
 
 [dependencies]
 clap = { version = "4.6.6", features = ["derive"] }
@@ -10,3 +20,10 @@ toml = "1.1.4"
 thiserror = "2"
 clap_complete = "4.6.9"
 serde_yaml_ng = "0.10.0"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

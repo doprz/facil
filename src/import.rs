@@ -58,7 +58,7 @@ pub fn convert(yaml: &str) -> Result<(Project, Vec<String>), ConfigError> {
     if !pre.is_empty() {
         warnings.push(
             "facil's `pre` runs after the tmux session is created; tmuxinator's `pre` runs before \
-             any tmux state exists — review timing-sensitive commands"
+             any tmux state exists - review timing-sensitive commands"
                 .to_string(),
         );
     }

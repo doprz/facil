@@ -127,7 +127,7 @@ impl Tmux {
     }
 
     /// All sessions on this socket. `Ok(vec![])` (not an error) when there's no
-    /// tmux server running on the socket at all — same "nothing there" convention
+    /// tmux server running on the socket at all - same "nothing there" convention
     /// as `has_session`.
     pub fn list_sessions(&self) -> Result<Vec<SessionInfo>, TmuxError> {
         let output = self.run(&[

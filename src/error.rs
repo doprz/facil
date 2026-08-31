@@ -30,7 +30,7 @@ pub enum ConfigError {
     },
     #[error("{field}: {message}")]
     Validation { field: String, message: String },
-    #[error("unresolved variable `{{{{{0}}}}}` — pass it via --set {0}=value")]
+    #[error("unresolved variable `{{{{{0}}}}}` - pass it via --set {0}=value")]
     UnresolvedVariable(String),
     #[error("invalid variable argument `{0}`, expected key=value")]
     InvalidVarArg(String),

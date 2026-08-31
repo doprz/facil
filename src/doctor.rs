@@ -3,7 +3,7 @@ use crate::error::Error;
 use crate::tmux;
 
 /// Every tmux feature facil relies on (`-P -F '#{pane_id}'`, send-keys, split-window,
-/// select-layout) predates this by years — it's a conservative floor, not a tight one.
+/// select-layout) predates this by years - it's a conservative floor, not a tight one.
 const MIN_TMUX_VERSION: (u32, u32) = (1, 9);
 
 pub fn run() -> Result<(), Error> {

@@ -1,27 +1,27 @@
 # facil
 
-`facil` combines config-driven tmux session templating with a CLI session manager. Point it at a TOML file and it builds a tmux session from it — windows, panes, layouts, and setup commands, all declared once and repeatable every time.
+`facil` combines config-driven tmux session templating with a CLI session manager. Point it at a TOML file and it builds a tmux session from it - windows, panes, layouts, and setup commands, all declared once and repeatable every time.
 
 Everything works headless and scriptable from the CLI; there's no TUI to get in the way.
 
 ## Why facil?
 
-- **Single binary.** No Ruby/gem toolchain to install first (tmuxinator), no other language runtime — build or download one binary. The only other runtime dependency is `tmux` itself, and `facil doctor` confirms it's there and compatible.
-- **TOML, not YAML.** Unambiguous parsing, no indentation footguns — a config's structure matches the data.
-- **Bring your existing configs.** `facil import <tmuxinator.yml>` converts a tmuxinator project directly (see [docs/import.md](docs/import.md)) — switching costs an import and a quick review, not a rewrite.
-- **The name**: *facil* comes from the Latin *facilis* / Spanish *fácil* — "easy" — the goal for both the config format and the CLI.
+- **Single binary.** No Ruby/gem toolchain to install first (tmuxinator), no other language runtime - build or download one binary. The only other runtime dependency is `tmux` itself, and `facil doctor` confirms it's there and compatible.
+- **TOML, not YAML.** Unambiguous parsing, no indentation footguns - a config's structure matches the data.
+- **Bring your existing configs.** `facil import <tmuxinator.yml>` converts a tmuxinator project directly (see [docs/import.md](docs/import.md)) - switching costs an import and a quick review, not a rewrite.
+- **The name**: *facil* comes from the Latin *facilis* / Spanish *fácil* - "easy" - the goal for both the config format and the CLI.
 
 ## Install
 
 From source:
 
 ```sh
-git clone https://github.com/doprz/facil
-cd facil
 cargo install --path .
 ```
 
-From crates.io (once published):
+This will build and install `facil` in your `~/.cargo/bin`. Make sure that `~/.cargo/bin` is in your `$PATH` variable.
+
+From crates.io:
 
 ```sh
 cargo install facil
@@ -70,7 +70,7 @@ facil stop myproject    # kills the session
 | `facil new [name]` | Scaffold a new config and open it in `$EDITOR` |
 | `facil edit [name]` | Open a config in `$EDITOR` |
 | `facil copy <existing> <new>` | Duplicate a config under a new name |
-| `facil list` (alias `ls`) | Show configured projects and live tmux sessions — windows, panes, attached/uptime, and which running sessions have no matching config |
+| `facil list` (alias `ls`) | Show configured projects and live tmux sessions - windows, panes, attached/uptime, and which running sessions have no matching config |
 | `facil delete [name]` | Delete a config file |
 | `facil validate [name]` | Check a config for errors without touching tmux |
 | `facil debug [name]` | Print the tmux command sequence a `start` would run, without executing it |
@@ -80,7 +80,7 @@ facil stop myproject    # kills the session
 
 `name` is optional throughout: give one to operate on `~/.config/facil/<name>.toml`, or omit it to use `./facil.toml` in the current directory. `--config <path>` overrides both.
 
-See [docs/config.md](docs/config.md) for the full config file spec — every field, validation rule, and the exact build order used when a session starts.
+See [docs/config.md](docs/config.md) for the full config file spec - every field, validation rule, and the exact build order used when a session starts.
 
 ### Per-pane working directories
 
@@ -105,7 +105,7 @@ commands = ["git checkout {{branch}}"]
 facil start myproject --set branch=main
 ```
 
-An unresolved `{{var}}` is a hard error before any tmux state changes — `facil validate` and `facil debug` catch these too.
+An unresolved `{{var}}` is a hard error before any tmux state changes - `facil validate` and `facil debug` catch these too.
 
 ## Shell completions
 
@@ -123,4 +123,6 @@ Issues and pull requests are welcome. Please run `cargo test` and `cargo clippy`
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+`facil` is licensed under the MIT License.
+
+SPDX-License-Identifier: `MIT`. See [LICENSE](LICENSE) for the full text. By submitting a contribution, you agree it is licensed under the same terms.
