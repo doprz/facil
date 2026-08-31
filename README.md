@@ -69,6 +69,7 @@ facil stop myproject    # kills the session
 |---|---|
 | `facil start [name]` | Build (or attach to) a tmux session from a config |
 | `facil stop [name]` | Kill a running session |
+| `facil restart [name]` | Stop the session if running, then start it fresh from the config |
 | `facil new [name]` | Scaffold a new config and open it in `$EDITOR` |
 | `facil edit [name]` | Open a config in `$EDITOR` |
 | `facil copy <existing> <new>` | Duplicate a config under a new name |

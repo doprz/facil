@@ -14,7 +14,10 @@ pub fn run() -> Result<(), Error> {
             println!("tmux found:      ok ({raw})");
             match parse_version(&raw) {
                 Some(v) if v >= MIN_TMUX_VERSION => {
-                    println!("tmux version:    ok (>= {}.{} required)", MIN_TMUX_VERSION.0, MIN_TMUX_VERSION.1);
+                    println!(
+                        "tmux version:    ok (>= {}.{} required)",
+                        MIN_TMUX_VERSION.0, MIN_TMUX_VERSION.1
+                    );
                 }
                 Some((major, minor)) => {
                     ok = false;
@@ -44,7 +47,11 @@ pub fn run() -> Result<(), Error> {
         }
     }
 
-    if ok { Ok(()) } else { Err(Error::AlreadyReported) }
+    if ok {
+        Ok(())
+    } else {
+        Err(Error::AlreadyReported)
+    }
 }
 
 fn check_config_dir_writable() -> Result<std::path::PathBuf, Error> {

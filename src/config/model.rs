@@ -42,7 +42,9 @@ pub struct Pane {
 impl Project {
     /// Effective, tilde-expanded root for a given pane (pane override, else project root).
     pub fn effective_root(&self, pane: Option<&Pane>) -> Option<PathBuf> {
-        let raw = pane.and_then(|p| p.root.as_deref()).or(self.root.as_deref())?;
+        let raw = pane
+            .and_then(|p| p.root.as_deref())
+            .or(self.root.as_deref())?;
         Some(expand_tilde(raw))
     }
 
@@ -100,9 +102,24 @@ mod tests {
             tmux_options: None,
             socket_name: None,
             windows: vec![
-                Window { name: "".to_string(), layout: None, pre_window: vec![], panes: vec![] },
-                Window { name: "custom".to_string(), layout: None, pre_window: vec![], panes: vec![] },
-                Window { name: "  ".to_string(), layout: None, pre_window: vec![], panes: vec![] },
+                Window {
+                    name: "".to_string(),
+                    layout: None,
+                    pre_window: vec![],
+                    panes: vec![],
+                },
+                Window {
+                    name: "custom".to_string(),
+                    layout: None,
+                    pre_window: vec![],
+                    panes: vec![],
+                },
+                Window {
+                    name: "  ".to_string(),
+                    layout: None,
+                    pre_window: vec![],
+                    panes: vec![],
+                },
             ],
         };
         project.fill_default_window_names();

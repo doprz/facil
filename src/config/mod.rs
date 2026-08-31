@@ -18,7 +18,10 @@ pub fn config_dir() -> Result<PathBuf, ConfigError> {
 
 /// Resolve which config file a `name` (or lack thereof) and `--config` override refer to.
 /// Does not require the file to exist.
-pub fn target_path(name: Option<&str>, override_path: Option<&Path>) -> Result<PathBuf, ConfigError> {
+pub fn target_path(
+    name: Option<&str>,
+    override_path: Option<&Path>,
+) -> Result<PathBuf, ConfigError> {
     if let Some(p) = override_path {
         return Ok(p.to_path_buf());
     }
@@ -29,7 +32,10 @@ pub fn target_path(name: Option<&str>, override_path: Option<&Path>) -> Result<P
 }
 
 /// Resolve and require the config file to already exist.
-pub fn resolve_path(name: Option<&str>, override_path: Option<&Path>) -> Result<PathBuf, ConfigError> {
+pub fn resolve_path(
+    name: Option<&str>,
+    override_path: Option<&Path>,
+) -> Result<PathBuf, ConfigError> {
     let path = target_path(name, override_path)?;
     if path.is_file() {
         Ok(path)
@@ -39,7 +45,8 @@ pub fn resolve_path(name: Option<&str>, override_path: Option<&Path>) -> Result<
 }
 
 fn read_and_substitute(path: &Path, vars: &HashMap<String, String>) -> Result<String, ConfigError> {
-    let raw = std::fs::read_to_string(path).map_err(|_| ConfigError::NotFound(path.to_path_buf()))?;
+    let raw =
+        std::fs::read_to_string(path).map_err(|_| ConfigError::NotFound(path.to_path_buf()))?;
     Ok(substitute::substitute(&raw, vars))
 }
 
@@ -47,8 +54,10 @@ fn read_and_substitute(path: &Path, vars: &HashMap<String, String>) -> Result<St
 /// Suitable for commands that only need top-level fields (e.g. `stop`).
 pub fn load_raw(path: &Path) -> Result<Project, ConfigError> {
     let resolved = read_and_substitute(path, &HashMap::new())?;
-    let mut project: Project =
-        toml::from_str(&resolved).map_err(|source| ConfigError::Parse { path: path.to_path_buf(), source })?;
+    let mut project: Project = toml::from_str(&resolved).map_err(|source| ConfigError::Parse {
+        path: path.to_path_buf(),
+        source,
+    })?;
     project.fill_default_window_names();
     Ok(project)
 }
@@ -58,8 +67,10 @@ pub fn load_raw(path: &Path) -> Result<Project, ConfigError> {
 pub fn load(path: &Path, vars: &HashMap<String, String>) -> Result<Project, ConfigError> {
     let resolved = read_and_substitute(path, vars)?;
     substitute::check_no_unresolved(&resolved)?;
-    let mut project: Project =
-        toml::from_str(&resolved).map_err(|source| ConfigError::Parse { path: path.to_path_buf(), source })?;
+    let mut project: Project = toml::from_str(&resolved).map_err(|source| ConfigError::Parse {
+        path: path.to_path_buf(),
+        source,
+    })?;
     project.fill_default_window_names();
     Ok(project)
 }

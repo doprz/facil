@@ -34,7 +34,10 @@ pub fn validate(project: &Project) -> Result<(), Vec<ConfigError>> {
         if let Some(layout) = &window.layout
             && layout.trim().is_empty()
         {
-            errors.push(field_error(&format!("{prefix}.layout"), "must not be empty if set"));
+            errors.push(field_error(
+                &format!("{prefix}.layout"),
+                "must not be empty if set",
+            ));
         }
 
         for (pi, pane) in window.panes.iter().enumerate() {
@@ -44,13 +47,20 @@ pub fn validate(project: &Project) -> Result<(), Vec<ConfigError>> {
         }
     }
 
-    if errors.is_empty() { Ok(()) } else { Err(errors) }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
 }
 
 fn check_dir_exists(field: &str, raw: &str, errors: &mut Vec<ConfigError>) {
     let path = crate::config::model::expand_tilde(raw);
     if !path.is_dir() {
-        errors.push(field_error(field, &format!("directory does not exist: {}", path.display())));
+        errors.push(field_error(
+            field,
+            &format!("directory does not exist: {}", path.display()),
+        ));
     }
 }
 
@@ -78,7 +88,10 @@ mod tests {
                 name: "editor".to_string(),
                 layout: None,
                 pre_window: vec![],
-                panes: vec![Pane { commands: vec!["nvim .".to_string()], root: None }],
+                panes: vec![Pane {
+                    commands: vec!["nvim .".to_string()],
+                    root: None,
+                }],
             }],
         }
     }
@@ -93,7 +106,11 @@ mod tests {
         let mut project = base_project();
         project.windows.clear();
         let errors = validate(&project).unwrap_err();
-        assert!(errors.iter().any(|e| matches!(e, ConfigError::Validation { field, .. } if field == "windows")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, ConfigError::Validation { field, .. } if field == "windows"))
+        );
     }
 
     #[test]
@@ -107,7 +124,11 @@ mod tests {
         };
         project.windows.push(dup);
         let errors = validate(&project).unwrap_err();
-        assert!(errors.iter().any(|e| matches!(e, ConfigError::Validation { field, .. } if field.contains("name"))));
+        assert!(
+            errors.iter().any(
+                |e| matches!(e, ConfigError::Validation { field, .. } if field.contains("name"))
+            )
+        );
     }
 
     #[test]
@@ -115,6 +136,10 @@ mod tests {
         let mut project = base_project();
         project.root = Some("/definitely/does/not/exist/facil-test".to_string());
         let errors = validate(&project).unwrap_err();
-        assert!(errors.iter().any(|e| matches!(e, ConfigError::Validation { field, .. } if field == "root")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, ConfigError::Validation { field, .. } if field == "root"))
+        );
     }
 }

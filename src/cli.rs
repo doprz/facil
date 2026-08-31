@@ -30,6 +30,15 @@ pub enum Commands {
     },
     /// Kill a running tmux session
     Stop { name: Option<String> },
+    /// Stop the session if running, then start it fresh from the config
+    Restart {
+        name: Option<String>,
+        #[arg(long)]
+        no_attach: bool,
+        /// key=value for {{var}} substitution, repeatable
+        #[arg(short = 's', long = "set", value_name = "KEY=VALUE")]
+        vars: Vec<String>,
+    },
     /// Scaffold a new config and open it in $EDITOR
     New { name: Option<String> },
     /// Open a config in $EDITOR

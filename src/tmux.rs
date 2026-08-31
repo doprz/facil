@@ -30,7 +30,13 @@ fn parse_session_line(line: &str) -> Option<SessionInfo> {
     let windows: usize = parts.next()?.parse().ok()?;
     let attached: u32 = parts.next()?.parse().ok()?;
     let created: i64 = parts.next()?.parse().ok()?;
-    Some(SessionInfo { name, windows, panes: 0, attached: attached > 0, created })
+    Some(SessionInfo {
+        name,
+        windows,
+        panes: 0,
+        attached: attached > 0,
+        created,
+    })
 }
 
 fn count_panes_by_session(raw: &str) -> HashMap<String, usize> {
@@ -61,7 +67,10 @@ pub fn version() -> Result<String, TmuxError> {
 
 impl Tmux {
     pub fn new(socket_name: Option<String>, verbose: u8) -> Self {
-        Self { socket_name, verbose }
+        Self {
+            socket_name,
+            verbose,
+        }
     }
 
     fn command(&self) -> Command {
@@ -139,7 +148,8 @@ impl Tmux {
             return Ok(vec![]);
         }
         let stdout = String::from_utf8_lossy(&output.stdout);
-        let mut sessions: Vec<SessionInfo> = stdout.lines().filter_map(parse_session_line).collect();
+        let mut sessions: Vec<SessionInfo> =
+            stdout.lines().filter_map(parse_session_line).collect();
 
         let pane_output = self.run(&["list-panes", "-a", "-F", "#{session_name}"])?;
         if pane_output.status.success() {
@@ -157,7 +167,13 @@ impl Tmux {
         if !self.has_session(session)? {
             return Err(TmuxError::SessionNotFound(session.to_string()));
         }
-        let output = self.run(&["list-windows", "-t", session, "-F", "#{window_name}\t#{window_layout}"])?;
+        let output = self.run(&[
+            "list-windows",
+            "-t",
+            session,
+            "-F",
+            "#{window_name}\t#{window_layout}",
+        ])?;
         if !output.status.success() {
             return Err(TmuxError::CommandFailed {
                 status: output.status.code().unwrap_or(-1),
@@ -169,7 +185,10 @@ impl Tmux {
             .lines()
             .filter_map(|line| {
                 let (name, layout) = line.split_once('\t')?;
-                Some(WindowInfo { name: name.to_string(), layout: layout.to_string() })
+                Some(WindowInfo {
+                    name: name.to_string(),
+                    layout: layout.to_string(),
+                })
             })
             .collect())
     }
@@ -183,7 +202,10 @@ impl Tmux {
                 stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
             });
         }
-        Ok(String::from_utf8_lossy(&output.stdout).lines().map(str::to_string).collect())
+        Ok(String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .map(str::to_string)
+            .collect())
     }
 
     pub fn new_session(
@@ -199,12 +221,19 @@ impl Tmux {
             args.push("-c");
             args.push(r);
         }
-        let extra: Vec<&str> = extra_options.map(|s| s.split_whitespace().collect()).unwrap_or_default();
+        let extra: Vec<&str> = extra_options
+            .map(|s| s.split_whitespace().collect())
+            .unwrap_or_default();
         args.extend(extra);
         self.run_capture_pane_id(args)
     }
 
-    pub fn new_window(&self, session: &str, window_name: &str, root: Option<&Path>) -> Result<String, TmuxError> {
+    pub fn new_window(
+        &self,
+        session: &str,
+        window_name: &str,
+        root: Option<&Path>,
+    ) -> Result<String, TmuxError> {
         let target = format!("{session}:");
         let root_str = root.map(|p| p.display().to_string());
         let mut args = vec!["new-window", "-t", target.as_str(), "-n", window_name];
@@ -215,7 +244,11 @@ impl Tmux {
         self.run_capture_pane_id(args)
     }
 
-    pub fn split_window(&self, target_pane: &str, root: Option<&Path>) -> Result<String, TmuxError> {
+    pub fn split_window(
+        &self,
+        target_pane: &str,
+        root: Option<&Path>,
+    ) -> Result<String, TmuxError> {
         let root_str = root.map(|p| p.display().to_string());
         let mut args = vec!["split-window", "-t", target_pane];
         if let Some(r) = &root_str {
@@ -242,7 +275,11 @@ impl Tmux {
     pub fn attach_or_switch(&self, session: &str) -> Result<(), TmuxError> {
         use std::os::unix::process::CommandExt;
 
-        let subcmd = if std::env::var("TMUX").is_ok() { "switch-client" } else { "attach-session" };
+        let subcmd = if std::env::var("TMUX").is_ok() {
+            "switch-client"
+        } else {
+            "attach-session"
+        };
         let err = self.command().args([subcmd, "-t", session]).exec();
         if err.kind() == std::io::ErrorKind::NotFound {
             Err(TmuxError::NotFound)
@@ -261,7 +298,13 @@ mod tests {
         let info = parse_session_line("myproject\t2\t1\t1700000000").unwrap();
         assert_eq!(
             info,
-            SessionInfo { name: "myproject".to_string(), windows: 2, panes: 0, attached: true, created: 1700000000 }
+            SessionInfo {
+                name: "myproject".to_string(),
+                windows: 2,
+                panes: 0,
+                attached: true,
+                created: 1700000000
+            }
         );
     }
 

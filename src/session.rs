@@ -7,12 +7,30 @@ use crate::tmux::Tmux;
 
 #[derive(Debug, Clone)]
 pub enum PlanStep {
-    NewSession { window_name: String, root: Option<PathBuf>, tmux_options: Option<String> },
+    NewSession {
+        window_name: String,
+        root: Option<PathBuf>,
+        tmux_options: Option<String>,
+    },
     Host(String),
-    NewWindow { window_name: String, root: Option<PathBuf> },
-    SplitPane { window_name: String, pane_index: usize, root: Option<PathBuf> },
-    SendKeys { window_name: String, pane_index: usize, command: String },
-    SelectLayout { window_name: String, layout: String },
+    NewWindow {
+        window_name: String,
+        root: Option<PathBuf>,
+    },
+    SplitPane {
+        window_name: String,
+        pane_index: usize,
+        root: Option<PathBuf>,
+    },
+    SendKeys {
+        window_name: String,
+        pane_index: usize,
+        command: String,
+    },
+    SelectLayout {
+        window_name: String,
+        layout: String,
+    },
 }
 
 /// Build the ordered, symbolic list of steps for `project`, matching the spec's
@@ -91,22 +109,48 @@ pub fn render(session: &str, steps: &[PlanStep]) -> String {
     let mut out = String::new();
     for step in steps {
         let line = match step {
-            PlanStep::NewSession { window_name, root, tmux_options } => {
-                let extra = tmux_options.as_deref().map(|o| format!(" {o}")).unwrap_or_default();
-                format!("tmux new-session -d -s {session} -n {window_name}{}{extra}", root_suffix(root))
+            PlanStep::NewSession {
+                window_name,
+                root,
+                tmux_options,
+            } => {
+                let extra = tmux_options
+                    .as_deref()
+                    .map(|o| format!(" {o}"))
+                    .unwrap_or_default();
+                format!(
+                    "tmux new-session -d -s {session} -n {window_name}{}{extra}",
+                    root_suffix(root)
+                )
             }
             PlanStep::Host(cmd) => format!("(host) {cmd}"),
             PlanStep::NewWindow { window_name, root } => {
-                format!("tmux new-window -t {session}: -n {window_name}{}", root_suffix(root))
+                format!(
+                    "tmux new-window -t {session}: -n {window_name}{}",
+                    root_suffix(root)
+                )
             }
-            PlanStep::SplitPane { window_name, pane_index, root } => {
-                format!("tmux split-window -t {session}:{window_name}{}", root_suffix(root))
-                    + &format!("  # -> {session}:{window_name}.{pane_index}")
+            PlanStep::SplitPane {
+                window_name,
+                pane_index,
+                root,
+            } => {
+                format!(
+                    "tmux split-window -t {session}:{window_name}{}",
+                    root_suffix(root)
+                ) + &format!("  # -> {session}:{window_name}.{pane_index}")
             }
-            PlanStep::SendKeys { window_name, pane_index, command } => {
+            PlanStep::SendKeys {
+                window_name,
+                pane_index,
+                command,
+            } => {
                 format!("tmux send-keys -t {session}:{window_name}.{pane_index} {command:?} Enter")
             }
-            PlanStep::SelectLayout { window_name, layout } => {
+            PlanStep::SelectLayout {
+                window_name,
+                layout,
+            } => {
                 format!("tmux select-layout -t {session}:{window_name} {layout}")
             }
         };
@@ -131,8 +175,17 @@ pub fn execute(session: &str, steps: &[PlanStep], tmux: &Tmux) -> Result<(), Err
 
     for step in steps {
         match step {
-            PlanStep::NewSession { window_name, root, tmux_options } => {
-                let pane_id = tmux.new_session(session, window_name, root.as_deref(), tmux_options.as_deref())?;
+            PlanStep::NewSession {
+                window_name,
+                root,
+                tmux_options,
+            } => {
+                let pane_id = tmux.new_session(
+                    session,
+                    window_name,
+                    root.as_deref(),
+                    tmux_options.as_deref(),
+                )?;
                 pane_ids.insert((window_name.clone(), 0), pane_id);
             }
             PlanStep::Host(cmd) => run_host_command(cmd)?,
@@ -140,20 +193,31 @@ pub fn execute(session: &str, steps: &[PlanStep], tmux: &Tmux) -> Result<(), Err
                 let pane_id = tmux.new_window(session, window_name, root.as_deref())?;
                 pane_ids.insert((window_name.clone(), 0), pane_id);
             }
-            PlanStep::SplitPane { window_name, pane_index, root } => {
+            PlanStep::SplitPane {
+                window_name,
+                pane_index,
+                root,
+            } => {
                 let base = pane_ids
                     .get(&(window_name.clone(), 0))
                     .expect("window's first pane must exist before splitting");
                 let pane_id = tmux.split_window(base, root.as_deref())?;
                 pane_ids.insert((window_name.clone(), *pane_index), pane_id);
             }
-            PlanStep::SendKeys { window_name, pane_index, command } => {
+            PlanStep::SendKeys {
+                window_name,
+                pane_index,
+                command,
+            } => {
                 let target = pane_ids
                     .get(&(window_name.clone(), *pane_index))
                     .expect("pane must exist before sending keys");
                 tmux.send_keys(target, command)?;
             }
-            PlanStep::SelectLayout { window_name, layout } => {
+            PlanStep::SelectLayout {
+                window_name,
+                layout,
+            } => {
                 let target = pane_ids
                     .get(&(window_name.clone(), 0))
                     .expect("window's first pane must exist before selecting layout");
@@ -166,11 +230,17 @@ pub fn execute(session: &str, steps: &[PlanStep], tmux: &Tmux) -> Result<(), Err
 }
 
 fn run_host_command(cmd: &str) -> Result<(), Error> {
-    let status = std::process::Command::new("sh").arg("-c").arg(cmd).status()?;
+    let status = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(cmd)
+        .status()?;
     if status.success() {
         Ok(())
     } else {
-        Err(Error::HostCommand { command: cmd.to_string(), status: status.code().unwrap_or(-1) })
+        Err(Error::HostCommand {
+            command: cmd.to_string(),
+            status: status.code().unwrap_or(-1),
+        })
     }
 }
 
@@ -193,15 +263,24 @@ mod tests {
                     layout: Some("main-vertical".to_string()),
                     pre_window: vec![],
                     panes: vec![
-                        Pane { commands: vec!["nvim .".to_string()], root: None },
-                        Pane { commands: vec!["cargo watch -x test".to_string()], root: None },
+                        Pane {
+                            commands: vec!["nvim .".to_string()],
+                            root: None,
+                        },
+                        Pane {
+                            commands: vec!["cargo watch -x test".to_string()],
+                            root: None,
+                        },
                     ],
                 },
                 Window {
                     name: "server".to_string(),
                     layout: None,
                     pre_window: vec!["source .env".to_string()],
-                    panes: vec![Pane { commands: vec!["docker compose up".to_string()], root: None }],
+                    panes: vec![Pane {
+                        commands: vec!["docker compose up".to_string()],
+                        root: None,
+                    }],
                 },
             ],
         }
@@ -226,15 +305,15 @@ mod tests {
             kinds,
             vec![
                 "new-session",
-                "host",       // pre
-                "new-window", // server
-                "split-pane", // editor pane 1
-                "send-keys",  // editor.0 nvim
-                "send-keys",  // editor.1 cargo watch
-                "send-keys",  // server pre_window
-                "send-keys",  // server pane command
+                "host",          // pre
+                "new-window",    // server
+                "split-pane",    // editor pane 1
+                "send-keys",     // editor.0 nvim
+                "send-keys",     // editor.1 cargo watch
+                "send-keys",     // server pre_window
+                "send-keys",     // server pane command
                 "select-layout", // editor
-                "host",       // post
+                "host",          // post
             ]
         );
     }
@@ -243,7 +322,12 @@ mod tests {
     fn first_pane_of_first_window_is_never_split() {
         let steps = build_plan(&project());
         for step in &steps {
-            if let PlanStep::SplitPane { window_name, pane_index, .. } = step {
+            if let PlanStep::SplitPane {
+                window_name,
+                pane_index,
+                ..
+            } = step
+            {
                 assert!(!(window_name == "editor" && *pane_index == 0));
             }
         }

@@ -17,8 +17,17 @@ pub fn dispatch(cli: Cli) -> Result<(), Error> {
     let verbose = cli.verbose;
 
     match cli.command {
-        Commands::Start { name, no_attach, vars } => start(name, config_override, vars, no_attach, verbose),
+        Commands::Start {
+            name,
+            no_attach,
+            vars,
+        } => start(name, config_override, vars, no_attach, verbose),
         Commands::Stop { name } => stop(name, config_override, verbose),
+        Commands::Restart {
+            name,
+            no_attach,
+            vars,
+        } => restart(name, config_override, vars, no_attach, verbose),
         Commands::New { name } => new(name, config_override),
         Commands::Edit { name } => edit(name, config_override),
         Commands::List => list(verbose),
@@ -45,7 +54,11 @@ fn validate_or_report(project: &Project) -> Result<(), Error> {
     Ok(())
 }
 
-fn load_for_build(name: Option<&str>, config_override: Option<&std::path::Path>, vars: &[String]) -> Result<Project, Error> {
+fn load_for_build(
+    name: Option<&str>,
+    config_override: Option<&std::path::Path>,
+    vars: &[String],
+) -> Result<Project, Error> {
     let path = config::resolve_path(name, config_override)?;
     let vars = substitute::parse_var_args(vars)?;
     let project = config::load(&path, &vars)?;
@@ -71,8 +84,34 @@ fn start(
         return Ok(tmux.attach_or_switch(&project.name)?);
     }
 
-    let steps = session::build_plan(&project);
-    session::execute(&project.name, &steps, &tmux)?;
+    build_and_attach(&project, &tmux, no_attach)
+}
+
+/// Stop the session first if it's running, then build and attach fresh.
+/// Loads and validates the config *before* touching tmux, so a config that
+/// broke since the session was started leaves the running session alone
+/// rather than killing it and then failing to rebuild it.
+fn restart(
+    name: Option<String>,
+    config_override: Option<&std::path::Path>,
+    vars: Vec<String>,
+    no_attach: bool,
+    verbose: u8,
+) -> Result<(), Error> {
+    let project = load_for_build(name.as_deref(), config_override, &vars)?;
+    let tmux = Tmux::new(project.socket_name.clone(), verbose);
+
+    if tmux.has_session(&project.name)? {
+        tmux.kill_session(&project.name)?;
+        println!("stopped '{}'", project.name);
+    }
+
+    build_and_attach(&project, &tmux, no_attach)
+}
+
+fn build_and_attach(project: &Project, tmux: &Tmux, no_attach: bool) -> Result<(), Error> {
+    let steps = session::build_plan(project);
+    session::execute(&project.name, &steps, tmux)?;
 
     if no_attach {
         println!("session '{}' started", project.name);
@@ -82,7 +121,11 @@ fn start(
     }
 }
 
-fn stop(name: Option<String>, config_override: Option<&std::path::Path>, verbose: u8) -> Result<(), Error> {
+fn stop(
+    name: Option<String>,
+    config_override: Option<&std::path::Path>,
+    verbose: u8,
+) -> Result<(), Error> {
     let path = config::resolve_path(name.as_deref(), config_override)?;
     let project = config::load_raw(&path)?;
     let tmux = Tmux::new(project.socket_name.clone(), verbose);
@@ -171,16 +214,36 @@ fn list(verbose: u8) -> Result<(), Error> {
             matched.insert(key);
             print_row(info, &path.display().to_string());
         } else {
-            println!("{name:<16} {:<9} {:<9} {:<7} {:<10} {:<8} {}", "stopped", "-", "-", "-", "-", path.display());
+            println!(
+                "{name:<16} {:<9} {:<9} {:<7} {:<10} {:<8} {}",
+                "stopped",
+                "-",
+                "-",
+                "-",
+                "-",
+                path.display()
+            );
         }
     }
 
     for (path, e) in &error_rows {
-        println!("{:<16} {:<9} {:<9} {:<7} {:<10} {:<8} {} ({e})", "?", "error", "-", "-", "-", "-", path.display());
+        println!(
+            "{:<16} {:<9} {:<9} {:<7} {:<10} {:<8} {} ({e})",
+            "?",
+            "error",
+            "-",
+            "-",
+            "-",
+            "-",
+            path.display()
+        );
     }
 
-    let mut unmanaged: Vec<&tmux::SessionInfo> =
-        live.iter().filter(|(key, _)| !matched.contains(key)).map(|(_, info)| info).collect();
+    let mut unmanaged: Vec<&tmux::SessionInfo> = live
+        .iter()
+        .filter(|(key, _)| !matched.contains(key))
+        .map(|(_, info)| info)
+        .collect();
     unmanaged.sort_by(|a, b| a.name.cmp(&b.name));
     for info in unmanaged {
         print_row(info, "(unmanaged)");
@@ -231,7 +294,11 @@ fn delete(name: Option<String>, config_override: Option<&std::path::Path>) -> Re
     Ok(())
 }
 
-fn validate_cmd(name: Option<String>, config_override: Option<&std::path::Path>, vars: Vec<String>) -> Result<(), Error> {
+fn validate_cmd(
+    name: Option<String>,
+    config_override: Option<&std::path::Path>,
+    vars: Vec<String>,
+) -> Result<(), Error> {
     match load_for_build(name.as_deref(), config_override, &vars) {
         Ok(_) => {
             println!("OK");
@@ -241,7 +308,11 @@ fn validate_cmd(name: Option<String>, config_override: Option<&std::path::Path>,
     }
 }
 
-fn debug_cmd(name: Option<String>, config_override: Option<&std::path::Path>, vars: Vec<String>) -> Result<(), Error> {
+fn debug_cmd(
+    name: Option<String>,
+    config_override: Option<&std::path::Path>,
+    vars: Vec<String>,
+) -> Result<(), Error> {
     let project = load_for_build(name.as_deref(), config_override, &vars)?;
     let steps = session::build_plan(&project);
     print!("{}", session::render(&project.name, &steps));
@@ -295,7 +366,11 @@ fn snapshot_cmd(session: String, socket: Option<String>, verbose: u8) -> Result<
 
     let tmux = Tmux::new(socket.clone(), verbose);
     let project = crate::snapshot::capture(&tmux, &session, socket)?;
-    let body = format!("{}{}", crate::snapshot::HEADER_COMMENT, toml::to_string_pretty(&project).map_err(ConfigError::from)?);
+    let body = format!(
+        "{}{}",
+        crate::snapshot::HEADER_COMMENT,
+        toml::to_string_pretty(&project).map_err(ConfigError::from)?
+    );
 
     if let Some(parent) = dest.parent() {
         std::fs::create_dir_all(parent)?;
@@ -334,7 +409,10 @@ fn import_cmd(path: std::path::PathBuf, name: Option<String>) -> Result<(), Erro
     }
     header.push('\n');
 
-    let body = format!("{header}{}", toml::to_string_pretty(&project).map_err(ConfigError::from)?);
+    let body = format!(
+        "{header}{}",
+        toml::to_string_pretty(&project).map_err(ConfigError::from)?
+    );
 
     if let Some(parent) = dest.parent() {
         std::fs::create_dir_all(parent)?;
