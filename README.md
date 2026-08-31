@@ -1,5 +1,7 @@
 # facil
 
+[![crates.io](https://img.shields.io/crates/v/facil)](https://crates.io/crates/facil)
+
 `facil` combines config-driven tmux session templating with a CLI session manager. Point it at a TOML file and it builds a tmux session from it - windows, panes, layouts, and setup commands, all declared once and repeatable every time.
 
 Everything works headless and scriptable from the CLI; there's no TUI to get in the way.
