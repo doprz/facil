@@ -44,6 +44,29 @@ pub fn resolve_path(
     }
 }
 
+/// Same precedence as `resolve_path`, but when no name/override is given,
+/// tries the current tmux session's name first (if it maps to a real config)
+/// before falling back to `./facil.toml`. Lets `facil edit` (etc.) run with no
+/// arguments from inside an already-running facil-managed session and just
+/// work, without needing to be in that project's directory.
+pub fn resolve_path_implicit(
+    name: Option<&str>,
+    override_path: Option<&Path>,
+) -> Result<PathBuf, ConfigError> {
+    if override_path.is_some() || name.is_some() {
+        return resolve_path(name, override_path);
+    }
+
+    if let Some(session) = crate::tmux::current_session_name() {
+        let candidate = config_dir()?.join(format!("{session}.toml"));
+        if candidate.is_file() {
+            return Ok(candidate);
+        }
+    }
+
+    resolve_path(None, None)
+}
+
 fn read_and_substitute(path: &Path, vars: &HashMap<String, String>) -> Result<String, ConfigError> {
     let raw =
         std::fs::read_to_string(path).map_err(|_| ConfigError::NotFound(path.to_path_buf()))?;
@@ -212,5 +235,29 @@ commands = ["docker compose up"]
         let substituted = substitute::substitute(raw, &vars);
         let project: Project = toml::from_str(&substituted).unwrap();
         assert_eq!(project.name, "resolved");
+    }
+
+    #[test]
+    fn resolve_path_implicit_explicit_name_wins() {
+        // An explicit name is used as-is, regardless of tmux context, and errors
+        // the normal way (NotFound) if it doesn't exist - no fallback kicks in.
+        let err = resolve_path_implicit(Some("definitely-not-a-real-config"), None).unwrap_err();
+        assert!(matches!(err, ConfigError::NotFound(_)));
+    }
+
+    #[test]
+    fn resolve_path_implicit_matches_plain_resolve_outside_tmux() {
+        // This test binary isn't running inside tmux, so with no name/override
+        // given, resolution should degrade to exactly what resolve_path(None, None)
+        // already returns - whatever that is in the current environment (a local
+        // facil.toml may or may not exist here), rather than asserting either
+        // outcome directly.
+        let implicit = resolve_path_implicit(None, None);
+        let plain = resolve_path(None, None);
+        match (implicit, plain) {
+            (Ok(a), Ok(b)) => assert_eq!(a, b),
+            (Err(ConfigError::NotFound(a)), Err(ConfigError::NotFound(b))) => assert_eq!(a, b),
+            other => panic!("expected matching results, got {other:?}"),
+        }
     }
 }

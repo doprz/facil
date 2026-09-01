@@ -65,6 +65,22 @@ pub fn version() -> Result<String, TmuxError> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
+/// The name of the tmux session this process is currently running inside, if
+/// any. `None` outside tmux or if the query fails for any reason - this is a
+/// convenience fallback for name resolution, never a hard requirement.
+pub fn current_session_name() -> Option<String> {
+    std::env::var("TMUX").ok()?;
+    let output = Command::new("tmux")
+        .args(["display-message", "-p", "#S"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if name.is_empty() { None } else { Some(name) }
+}
+
 impl Tmux {
     pub fn new(socket_name: Option<String>, verbose: u8) -> Self {
         Self {
@@ -307,6 +323,15 @@ impl Tmux {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn current_session_name_outside_tmux_is_none() {
+        // Only assert when this test binary itself isn't running inside tmux -
+        // mutating $TMUX here would race with other tests in this same process.
+        if std::env::var("TMUX").is_err() {
+            assert_eq!(current_session_name(), None);
+        }
+    }
 
     #[test]
     fn parses_session_line() {

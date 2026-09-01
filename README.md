@@ -81,7 +81,7 @@ facil stop myproject    # kills the session
 | `facil snapshot <session>` | Write a config that reproduces a live session's window/pane layout and working directories (not commands, `pre`/`post`, or `tmux_options`) |
 | `facil import <path.yml> [name]` | Convert a tmuxinator YAML config to a facil config and open it in `$EDITOR` |
 
-`name` is optional throughout: give one to operate on `~/.config/facil/<name>.toml`, or omit it to use `./facil.toml` in the current directory. `--config <path>` overrides both.
+`name` is optional throughout: give one to operate on `~/.config/facil/<name>.toml`, or omit it to use `./facil.toml` in the current directory. `--config <path>` overrides both. If you're already inside a tmux session and omit the name, facil tries that session's name first (e.g. `facil edit` from inside your `facil`-managed session opens `facil.toml` directly, from anywhere) - it only falls back to `./facil.toml` if no config matches the current session.
 
 See [docs/config.md](docs/config.md) for the full config file spec - every field, validation rule, and the exact build order used when a session starts.
 
@@ -112,13 +112,24 @@ An unresolved `{{var}}` is a hard error before any tmux state changes - `facil v
 
 ## Shell completions
 
+Recommended: dynamic completions, which also complete existing config names for `facil edit <TAB>`, `facil start <TAB>`, etc. by actually listing `~/.config/facil` at completion time.
+Add one line to your shell's rc file:
+
+```sh
+source <(COMPLETE=bash facil)   # ~/.bashrc
+source <(COMPLETE=zsh facil)    # ~/.zshrc
+COMPLETE=fish facil | source    # ~/.config/fish/config.fish
+```
+
+Alternatively, a static, pre-generated script - only completes command and flag names, not config names, but doesn't spawn `facil` on every completion:
+
 ```sh
 facil completions bash > /etc/bash_completion.d/facil
 facil completions zsh  > ~/.zfunc/_facil
 facil completions fish > ~/.config/fish/completions/facil.fish
 ```
 
-(`elvish` and `powershell` are also supported.)
+(`elvish` and `powershell` are also supported by both methods.)
 
 ## Contributing
 

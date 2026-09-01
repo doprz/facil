@@ -59,7 +59,7 @@ fn load_for_build(
     config_override: Option<&std::path::Path>,
     vars: &[String],
 ) -> Result<Project, Error> {
-    let path = config::resolve_path(name, config_override)?;
+    let path = config::resolve_path_implicit(name, config_override)?;
     let vars = substitute::parse_var_args(vars)?;
     let project = config::load(&path, &vars)?;
     validate_or_report(&project)?;
@@ -126,7 +126,7 @@ fn stop(
     config_override: Option<&std::path::Path>,
     verbose: u8,
 ) -> Result<(), Error> {
-    let path = config::resolve_path(name.as_deref(), config_override)?;
+    let path = config::resolve_path_implicit(name.as_deref(), config_override)?;
     let project = config::load_raw(&path)?;
     let tmux = Tmux::new(project.socket_name.clone(), verbose);
 
@@ -156,7 +156,7 @@ fn new(name: Option<String>, config_override: Option<&std::path::Path>) -> Resul
 }
 
 fn edit(name: Option<String>, config_override: Option<&std::path::Path>) -> Result<(), Error> {
-    let path = config::resolve_path(name.as_deref(), config_override)?;
+    let path = config::resolve_path_implicit(name.as_deref(), config_override)?;
     open_in_editor(&path)
 }
 
@@ -288,7 +288,7 @@ fn format_uptime(created_epoch: i64) -> String {
 }
 
 fn delete(name: Option<String>, config_override: Option<&std::path::Path>) -> Result<(), Error> {
-    let path = config::resolve_path(name.as_deref(), config_override)?;
+    let path = config::resolve_path_implicit(name.as_deref(), config_override)?;
     std::fs::remove_file(&path)?;
     println!("deleted {}", path.display());
     Ok(())

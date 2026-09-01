@@ -7,14 +7,28 @@ aspirational syntax.
 
 ## File discovery
 
-A config is located one of three ways, in this order:
+For `start`, `stop`, `restart`, `edit`, `validate`, `debug`, and `delete`, a
+config is located one of four ways, in this order:
 
 1. `--config <path>` - an explicit path, used verbatim regardless of any name.
 2. `~/.config/facil/<name>.toml` - used when a `<name>` argument is given (e.g.
    `facil start myproject` looks for `~/.config/facil/myproject.toml`). This is a
    literal `~/.config/facil` path, not `$XDG_CONFIG_HOME`.
-3. `./facil.toml` - used when no name and no `--config` are given, resolved
-   relative to the current working directory.
+3. **The current tmux session's name** - if no name and no `--config` were given,
+   but the command is running inside an existing tmux session (`$TMUX` is set)
+   and `~/.config/facil/<that session's name>.toml` exists, that's used. This is
+   what makes `facil edit` (with no arguments) work from inside a
+   facil-managed session without needing to be in that project's directory -
+   it silently does nothing (falls through to the next step) if you're not in
+   tmux, or the current session's name doesn't match any config.
+4. `./facil.toml` - used when none of the above apply, resolved relative to the
+   current working directory.
+
+`new`, `copy`, `import`, `snapshot`, and `list` don't use step 3 - `new`
+creating something implicitly named after whatever tmux session you happen to
+be sitting in would be a surprising default rather than a helpful one, and the
+others either take required names or already have a different, well-defined
+fallback (`import`'s missing name defaults to the YAML's own `name:` field).
 
 The tmux session name is always the `name` field *inside* the loaded file, not
 the filename or the `<name>` argument used to find it. In practice these should
