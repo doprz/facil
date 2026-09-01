@@ -211,12 +211,16 @@ impl Tmux {
     pub fn new_session(
         &self,
         session: &str,
-        window_name: &str,
+        window_name: Option<&str>,
         root: Option<&Path>,
         extra_options: Option<&str>,
     ) -> Result<String, TmuxError> {
         let root_str = root.map(|p| p.display().to_string());
-        let mut args = vec!["new-session", "-d", "-s", session, "-n", window_name];
+        let mut args = vec!["new-session", "-d", "-s", session];
+        if let Some(name) = window_name {
+            args.push("-n");
+            args.push(name);
+        }
         if let Some(r) = &root_str {
             args.push("-c");
             args.push(r);
@@ -231,12 +235,16 @@ impl Tmux {
     pub fn new_window(
         &self,
         session: &str,
-        window_name: &str,
+        window_name: Option<&str>,
         root: Option<&Path>,
     ) -> Result<String, TmuxError> {
         let target = format!("{session}:");
         let root_str = root.map(|p| p.display().to_string());
-        let mut args = vec!["new-window", "-t", target.as_str(), "-n", window_name];
+        let mut args = vec!["new-window", "-t", target.as_str()];
+        if let Some(name) = window_name {
+            args.push("-n");
+            args.push(name);
+        }
         if let Some(r) = &root_str {
             args.push("-c");
             args.push(r);
@@ -264,6 +272,13 @@ impl Tmux {
 
     pub fn select_layout(&self, target_pane: &str, layout: &str) -> Result<(), TmuxError> {
         self.run_ok(&["select-layout", "-t", target_pane, layout])
+    }
+
+    /// Make the window containing `target_pane` the session's active window.
+    /// Targeting via a pane id (rather than a window name/index) means this
+    /// works regardless of the user's `base-index` and even for unnamed windows.
+    pub fn select_window(&self, target_pane: &str) -> Result<(), TmuxError> {
+        self.run_ok(&["select-window", "-t", target_pane])
     }
 
     pub fn kill_session(&self, session: &str) -> Result<(), TmuxError> {

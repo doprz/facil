@@ -26,8 +26,9 @@ pub fn capture(tmux: &Tmux, session: &str, socket_name: Option<String>) -> Resul
         .into_iter()
         .zip(pane_paths_by_window)
         .map(|(window, paths)| Window {
-            name: window.name,
+            name: Some(window.name),
             layout: Some(window.layout),
+            root: None,
             pre_window: vec![],
             panes: paths
                 .into_iter()
@@ -50,6 +51,7 @@ pub fn capture(tmux: &Tmux, session: &str, socket_name: Option<String>) -> Resul
         post: vec![],
         tmux_options: None,
         socket_name,
+        attach_window: None,
         windows: project_windows,
     })
 }

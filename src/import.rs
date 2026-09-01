@@ -14,6 +14,7 @@ const KNOWN_TOP_LEVEL_KEYS: &[&str] = &[
     "pre_window",
     "windows",
     "project_hooks",
+    "startup_window",
 ];
 const KNOWN_WINDOW_KEYS: &[&str] = &["layout", "root", "panes", "pre_window", "pre"];
 
@@ -88,6 +89,17 @@ pub fn convert(yaml: &str) -> Result<(Project, Vec<String>), ConfigError> {
 
     let top_level_pre_window = as_str_list(root.get("pre_window"));
 
+    let attach_window = root.get("startup_window").and_then(value_to_string);
+    if let Some(w) = &attach_window
+        && root.get("startup_window").and_then(Value::as_str).is_none()
+    {
+        warnings.push(format!(
+            "startup_window: {w} is a tmux window index in the source file, which depends on \
+             tmuxinator's base-index; facil interprets attach_window as a 1-based position in \
+             this file's window list instead - verify it still points at the right window"
+        ));
+    }
+
     for key in root.keys() {
         if let Some(key_str) = key.as_str()
             && !KNOWN_TOP_LEVEL_KEYS.contains(&key_str)
@@ -119,9 +131,19 @@ pub fn convert(yaml: &str) -> Result<(Project, Vec<String>), ConfigError> {
         post,
         tmux_options,
         socket_name,
+        attach_window,
         windows,
     };
     Ok((project, warnings))
+}
+
+fn value_to_string(v: &Value) -> Option<String> {
+    if let Some(s) = v.as_str() {
+        return Some(s.to_string());
+    }
+    v.as_u64()
+        .map(|n| n.to_string())
+        .or_else(|| v.as_i64().map(|n| n.to_string()))
 }
 
 fn convert_window(
@@ -141,8 +163,9 @@ fn convert_window(
 
     let window = match value {
         Value::String(cmd) => Window {
-            name,
+            name: Some(name),
             layout: None,
+            root: None,
             pre_window: top_level_pre_window.to_vec(),
             panes: vec![Pane {
                 commands: vec![cmd.clone()],
@@ -150,8 +173,9 @@ fn convert_window(
             }],
         },
         Value::Null => Window {
-            name,
+            name: Some(name),
             layout: None,
+            root: None,
             pre_window: top_level_pre_window.to_vec(),
             panes: vec![Pane::default()],
         },
@@ -181,28 +205,16 @@ fn convert_window_mapping(
     };
 
     let panes = match m.get("panes") {
-        None => vec![Pane {
-            commands: vec![],
-            root: window_root.clone(),
-        }],
+        None => vec![Pane::default()],
         Some(Value::Sequence(seq)) => seq
             .iter()
-            .map(|p| convert_pane(p, window_root.as_deref(), &name, warnings))
+            .map(|p| convert_pane(p, &name, warnings))
             .collect(),
         Some(_) => {
             warnings.push(format!("windows.{name}.panes has an unsupported shape and was imported as a single empty pane"));
-            vec![Pane {
-                commands: vec![],
-                root: window_root.clone(),
-            }]
+            vec![Pane::default()]
         }
     };
-
-    if window_root.is_some() {
-        warnings.push(format!(
-            "windows.{name}.root has no facil equivalent at the window level; applied to each of its panes instead"
-        ));
-    }
 
     for key in m.keys() {
         if let Some(key_str) = key.as_str()
@@ -215,43 +227,33 @@ fn convert_window_mapping(
     }
 
     Window {
-        name,
+        name: Some(name),
         layout,
+        root: window_root,
         pre_window,
         panes,
     }
 }
 
-fn convert_pane(
-    value: &Value,
-    window_root: Option<&str>,
-    window_name: &str,
-    warnings: &mut Vec<String>,
-) -> Pane {
+fn convert_pane(value: &Value, window_name: &str, warnings: &mut Vec<String>) -> Pane {
     match value {
         Value::String(s) => Pane {
             commands: vec![s.clone()],
-            root: window_root.map(str::to_string),
+            root: None,
         },
-        Value::Null => Pane {
-            commands: vec![],
-            root: window_root.map(str::to_string),
-        },
+        Value::Null => Pane::default(),
         Value::Sequence(seq) => Pane {
             commands: seq
                 .iter()
                 .filter_map(|v| v.as_str().map(str::to_string))
                 .collect(),
-            root: window_root.map(str::to_string),
+            root: None,
         },
         _ => {
             warnings.push(format!(
                 "a pane in window `{window_name}` has an unsupported shape and was imported empty"
             ));
-            Pane {
-                commands: vec![],
-                root: window_root.map(str::to_string),
-            }
+            Pane::default()
         }
     }
 }
@@ -304,7 +306,7 @@ windows:
         assert_eq!(project.windows.len(), 3);
 
         let editor = &project.windows[0];
-        assert_eq!(editor.name, "editor");
+        assert_eq!(editor.name.as_deref(), Some("editor"));
         assert_eq!(editor.layout.as_deref(), Some("main-vertical"));
         // window-level pre_window overrides the top-level one
         assert_eq!(editor.pre_window, vec!["source .venv/bin/activate"]);
@@ -317,15 +319,15 @@ windows:
         assert_eq!(editor.panes[2].commands, Vec::<String>::new());
 
         let server = &project.windows[1];
-        assert_eq!(server.name, "server");
+        assert_eq!(server.name.as_deref(), Some("server"));
         // no window-level override -> inherits the top-level pre_window
         assert_eq!(server.pre_window, vec!["rbenv shell 2.0.0-p247"]);
         assert_eq!(server.panes[0].commands, vec!["bundle exec rails s"]);
 
         let logs = &project.windows[2];
-        assert_eq!(logs.panes[0].root.as_deref(), Some("~/code/sample/logs"));
+        assert_eq!(logs.root.as_deref(), Some("~/code/sample/logs"));
+        assert_eq!(logs.panes[0].root, None);
 
-        assert!(warnings.iter().any(|w| w.contains("windows.logs.root")));
         assert!(
             warnings
                 .iter()
@@ -371,5 +373,21 @@ windows:
         let yaml = "name: p\nwindows:\n  - solo: echo hi\n";
         let (project, _) = convert(yaml).unwrap();
         assert_eq!(project.windows[0].panes[0].commands, vec!["echo hi"]);
+    }
+
+    #[test]
+    fn startup_window_by_name_maps_directly_no_warning() {
+        let yaml = "name: p\nstartup_window: b\nwindows:\n  - a: cmd\n  - b: cmd\n";
+        let (project, warnings) = convert(yaml).unwrap();
+        assert_eq!(project.attach_window.as_deref(), Some("b"));
+        assert!(!warnings.iter().any(|w| w.contains("startup_window")));
+    }
+
+    #[test]
+    fn startup_window_by_index_maps_with_caveat_warning() {
+        let yaml = "name: p\nstartup_window: 1\nwindows:\n  - a: cmd\n  - b: cmd\n";
+        let (project, warnings) = convert(yaml).unwrap();
+        assert_eq!(project.attach_window.as_deref(), Some("1"));
+        assert!(warnings.iter().any(|w| w.contains("startup_window")));
     }
 }

@@ -54,12 +54,10 @@ fn read_and_substitute(path: &Path, vars: &HashMap<String, String>) -> Result<St
 /// Suitable for commands that only need top-level fields (e.g. `stop`).
 pub fn load_raw(path: &Path) -> Result<Project, ConfigError> {
     let resolved = read_and_substitute(path, &HashMap::new())?;
-    let mut project: Project = toml::from_str(&resolved).map_err(|source| ConfigError::Parse {
+    toml::from_str(&resolved).map_err(|source| ConfigError::Parse {
         path: path.to_path_buf(),
         source,
-    })?;
-    project.fill_default_window_names();
-    Ok(project)
+    })
 }
 
 /// Parse a config, substituting `vars` and requiring no `{{var}}` tokens remain.
@@ -67,12 +65,10 @@ pub fn load_raw(path: &Path) -> Result<Project, ConfigError> {
 pub fn load(path: &Path, vars: &HashMap<String, String>) -> Result<Project, ConfigError> {
     let resolved = read_and_substitute(path, vars)?;
     substitute::check_no_unresolved(&resolved)?;
-    let mut project: Project = toml::from_str(&resolved).map_err(|source| ConfigError::Parse {
+    toml::from_str(&resolved).map_err(|source| ConfigError::Parse {
         path: path.to_path_buf(),
         source,
-    })?;
-    project.fill_default_window_names();
-    Ok(project)
+    })
 }
 
 pub fn scaffold(name: &str) -> String {
@@ -126,6 +122,27 @@ pub fn rewrite_name(raw: &str, new_name: &str) -> Option<String> {
     replaced.then_some(out)
 }
 
+pub fn discover_all() -> Result<Vec<PathBuf>, Error> {
+    let mut paths = Vec::new();
+
+    if Path::new(LOCAL_CONFIG).is_file() {
+        paths.push(PathBuf::from(LOCAL_CONFIG));
+    }
+
+    let dir = config_dir()?;
+    if dir.is_dir() {
+        let mut entries: Vec<PathBuf> = std::fs::read_dir(&dir)?
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|p| p.extension().is_some_and(|ext| ext == "toml"))
+            .collect();
+        entries.sort();
+        paths.extend(entries);
+    }
+
+    Ok(paths)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -159,14 +176,14 @@ commands = ["docker compose up"]
         assert_eq!(project.windows.len(), 2);
 
         let editor = &project.windows[0];
-        assert_eq!(editor.name, "editor");
+        assert_eq!(editor.name.as_deref(), Some("editor"));
         assert_eq!(editor.layout.as_deref(), Some("main-vertical"));
         assert_eq!(editor.panes.len(), 2);
         assert_eq!(editor.panes[0].commands, vec!["nvim ."]);
         assert_eq!(editor.panes[1].commands, vec!["cargo watch -x test"]);
 
         let server = &project.windows[1];
-        assert_eq!(server.name, "server");
+        assert_eq!(server.name.as_deref(), Some("server"));
         assert!(server.layout.is_none());
         assert_eq!(server.panes.len(), 1);
         assert_eq!(server.panes[0].commands, vec!["docker compose up"]);
@@ -177,8 +194,8 @@ commands = ["docker compose up"]
         let out = rewrite_name(SPEC_EXAMPLE, "renamed").unwrap();
         let project: Project = toml::from_str(&out).unwrap();
         assert_eq!(project.name, "renamed");
-        assert_eq!(project.windows[0].name, "editor");
-        assert_eq!(project.windows[1].name, "server");
+        assert_eq!(project.windows[0].name.as_deref(), Some("editor"));
+        assert_eq!(project.windows[1].name.as_deref(), Some("server"));
     }
 
     #[test]
@@ -196,25 +213,4 @@ commands = ["docker compose up"]
         let project: Project = toml::from_str(&substituted).unwrap();
         assert_eq!(project.name, "resolved");
     }
-}
-
-pub fn discover_all() -> Result<Vec<PathBuf>, Error> {
-    let mut paths = Vec::new();
-
-    if Path::new(LOCAL_CONFIG).is_file() {
-        paths.push(PathBuf::from(LOCAL_CONFIG));
-    }
-
-    let dir = config_dir()?;
-    if dir.is_dir() {
-        let mut entries: Vec<PathBuf> = std::fs::read_dir(&dir)?
-            .filter_map(|e| e.ok())
-            .map(|e| e.path())
-            .filter(|p| p.extension().is_some_and(|ext| ext == "toml"))
-            .collect();
-        entries.sort();
-        paths.extend(entries);
-    }
-
-    Ok(paths)
 }
