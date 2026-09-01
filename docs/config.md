@@ -245,6 +245,19 @@ until it's created.
   window name with a space via `tmux_options`).
 - **Config files must be valid UTF-8.** Substitution and parsing both operate
   on the file as a UTF-8 string.
+- **Manually splitting a pane after the session is built doesn't inherit its `root`.**
+  This is tmux's own default behavior, not something facil controls: every pane
+  facil creates gets its root via an explicit `-c`, but tmux's *default* split/new-window
+  key bindings (`prefix %`, `"`, `c`) don't pass `-c` themselves. Without it, tmux falls
+  back to the cwd of the client that attached to the session - typically wherever you ran
+  `facil start` from - not the pane you're currently viewing. Fix it once in `~/.tmux.conf`:
+  ```tmux
+  bind '"' split-window -c "#{pane_current_path}"
+  bind %   split-window -h -c "#{pane_current_path}"
+  bind c   new-window -c "#{pane_current_path}"
+  ```
+  This makes tmux itself inherit whichever pane is focused for *any* session,
+  not just facil-built ones. This is one of the most common tmux.conf customizations for this reason.
 
 ## Full example
 
